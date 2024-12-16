@@ -3,6 +3,7 @@ import { PrismaService } from './prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import * as bcrypt from 'bcrypt';
+import { ne } from '@faker-js/faker/.';
 
 @Injectable()
 export class AppService {
@@ -32,11 +33,10 @@ export class AppService {
   async getAll(){
     return await this.db.sutemeny.findMany();
   }
-  async updateProfile(currentUsername: string, newUsername: string, newPassword: string) {
+  async updateProfile(currentUsername: string, currentPassword: string, newUsername: string, newPassword: string) {
     try {
+      let newPass = "";
       const saltRounds = 10;
-      const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-  
       const user = await this.db.profile.findUnique({
         where: { username: currentUsername },
       });
@@ -44,27 +44,35 @@ export class AppService {
       if (!user) {
         throw new Error('User not found');
       }
-  
-      if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/.test(newPassword)) {
-        throw new HttpException('Password must be at least 6 characters long and contain at least one number, one lowercase letter, and one uppercase letter.', HttpStatus.BAD_REQUEST);
+
+      if(currentPassword != newPassword){
+        if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/.test(newPassword)) {
+          throw new HttpException('Password must be at least 6 characters long and contain at least one number, one lowercase letter, and one uppercase letter.', HttpStatus.BAD_REQUEST);
+        }
+        newPass = await bcrypt.hash(newPassword, saltRounds)
+      }
+      else{
+        newPass = currentPassword;
+      }
+      if(currentUsername != newUsername){
+        if (await this.db.profile.findUnique({ where: { username: newUsername } })) {
+          throw new Error("Username already exists");
+        }
       }
   
-      if (await this.db.profile.findUnique({ where: { username: newUsername } })) {
-        throw new Error("Username already exists");
-      }
   
       const updatedUser = await this.db.profile.update({
         where: { username: currentUsername },
         data: {
           username: newUsername || user.username,
-          password: hashedPassword || user.password,
+          password: newPass,
         },
       });
   
       return updatedUser;
     } catch (error) {
       console.error('Error updating profile:', error);
-      throw error; // Rethrow the error for the controller to handle
+      throw error;
     }
   }
   

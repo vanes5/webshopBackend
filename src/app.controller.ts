@@ -26,20 +26,19 @@ export class AppController {
   }
   @Patch('/editprofile')
   async updateProfile(@Req() req: Request, @Res() res: Response) {
-  const { username, password } = req.body;
+    const { username, password } = req.body;
 
-  if (!req.session.user) {
-    return res.status(400).json({ message: 'User not authenticated' });
-  }
+    if (!req.session.user) {
+      return res.status(400).json({ message: 'User not authenticated' });
+    }
 
-  try {
-    const updatedUser = { username: username || req.session.user.username, password: password || req.session.user.password };
-    req.session.user = updatedUser; // Update session
-    return res.status(200).json({ message: 'Profile updated successfully', user: updatedUser });
-  } catch (error) {
-    console.error('Error updating profile:', error); // Log the error
-    return res.status(500).json({ message: 'Failed to update profile', error: error.message }); // Send error message back
-  }
+    try {
+      const updatedUser = await this.appService.updateProfile(req.session.user.username, req.session.user.password, username, password);
+      req.session.user = { username: updatedUser.username, password: updatedUser.password };  
+      return res.status(200).json({ message: 'Profile updated successfully', user: updatedUser });
+    } catch (error) {
+      return res.status(500).json({ message: 'Failed to update profile' });
+    }
 }
 
   @Get('profile')
@@ -59,14 +58,19 @@ export class AppController {
       if (err) {
         return res.status(500).json({ message: 'Failed to logout' });
       }
-      res.clearCookie('connect.sid'); // Clear session cookie
+      res.clearCookie('connect.sid');
       return res.status(200).json({ message: 'Successfully logged out' });
     });
   };
   
-  @Get('check-auth')
-  @UseGuards(AuthGuard)  // Use the AuthGuard to ensure the user is authenticated
+  @Get('/check-auth')
+  @UseGuards(AuthGuard) 
   checkAuthStatus(@Req() req: Request) {
-    return { user: req.session.user };  // Return the user info if authenticated
+    if(req.session.user){
+      return { user: req.session.user };
+    }
+    else{
+      throw new Error("not authenticated.");
+    }
   }
 }
